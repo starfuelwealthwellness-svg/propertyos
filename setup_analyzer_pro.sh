@@ -1,3 +1,178 @@
+#!/usr/bin/env bash
+# PropertyOS — Analyzer Pro foundation: plan flag + save/pipeline.
+# Run from project root. Then run 0006 in Supabase.
+set -e
+if [ ! -f app/analyzer/Analyzer.tsx ]; then
+  echo "ERROR: run the analyzer setup first (app/analyzer/Analyzer.tsx missing)."
+  exit 1
+fi
+mkdir -p app/analyzer/saved supabase/migrations
+
+# ---------------------------------------------------------------
+cat > supabase/migrations/0006_analyzer_pro.sql << '__EOF__'
+-- PropertyOS — 0006_analyzer_pro.sql
+-- Adds a per-org plan flag (free/pro) and a table of saved analyses.
+
+alter table organizations
+  add column if not exists plan text not null default 'free'
+  check (plan in ('free','pro'));
+
+create table if not exists analyses (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references organizations(id),
+  created_by uuid references profiles(id),
+  name text not null,
+  address text,
+  plan_name text,
+  inputs jsonb not null default '{}',
+  summary jsonb not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create index if not exists analyses_org_idx on analyses (organization_id) where deleted_at is null;
+
+alter table analyses enable row level security;
+create policy "org access" on analyses for all
+  using (organization_id in (select current_user_org_ids()))
+  with check (organization_id in (select current_user_org_ids()));
+
+create trigger trg_analyses_updated before update on analyses
+  for each row execute function set_updated_at();
+__EOF__
+
+# ---------------------------------------------------------------
+cat > app/analyzer/actions.ts << '__EOF__'
+"use server";
+
+import { requireOrg } from "@/lib/auth";
+
+type SaveInput = {
+  name: string; address: string; planName: string; inputs: unknown; summary: unknown;
+};
+
+export async function saveAnalysis(data: SaveInput) {
+  const { supabase, orgId, user } = await requireOrg();
+
+  const { data: org } = await supabase
+    .from("organizations").select("plan").eq("id", orgId).maybeSingle();
+  if ((org as any)?.plan !== "pro") {
+    return { ok: false as const, error: "Saving deals is a Pro feature." };
+  }
+
+  const { error } = await supabase.from("analyses").insert({
+    organization_id: orgId,
+    created_by: user.id,
+    name: (data.name || "Untitled deal").slice(0, 120),
+    address: data.address || null,
+    plan_name: data.planName || null,
+    inputs: data.inputs ?? {},
+    summary: data.summary ?? {},
+  });
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const };
+}
+__EOF__
+
+# ---------------------------------------------------------------
+cat > app/analyzer/saved/page.tsx << '__EOF__'
+import Link from "next/link";
+import { requireOrg } from "@/lib/auth";
+import AppHeader from "@/app/_components/AppHeader";
+
+export default async function SavedDealsPage() {
+  const { supabase, orgId, membership } = await requireOrg();
+  const orgName = (membership as any).organizations?.name ?? "Your organization";
+  const { data: org } = await supabase
+    .from("organizations").select("plan").eq("id", orgId).maybeSingle();
+  const isPro = (org as any)?.plan === "pro";
+
+  let deals: any[] | null = null;
+  if (isPro) {
+    const res = await supabase
+      .from("analyses")
+      .select("id, name, address, plan_name, summary, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+    deals = res.data;
+  }
+
+  return (
+    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+      <AppHeader orgName={orgName} />
+      <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Saved deals</h1>
+          <Link href="/analyzer" className="text-sm text-amber-300 hover:underline">← Back to Analyzer</Link>
+        </div>
+
+        {!isPro ? (
+          <div className="rounded-lg border border-amber-500/40 bg-neutral-900 p-6">
+            <div className="text-amber-300 font-semibold">Saved deals is a Pro feature</div>
+            <p className="text-sm text-neutral-400 mt-2">
+              Upgrade to save analyses to a pipeline, export branded PDF reports, and send deals to your Acquisition Engine.
+            </p>
+          </div>
+        ) : !deals || deals.length === 0 ? (
+          <p className="text-neutral-400 text-sm">No saved deals yet. Run an analysis and click &ldquo;Save this deal.&rdquo;</p>
+        ) : (
+          <div className="grid gap-3">
+            {deals.map((d: any) => {
+              const s = d.summary || {};
+              const verdict = s.verdict ?? "—";
+              const vc = verdict === "Pencils" ? "text-green-400" : verdict === "Underwater" ? "text-red-400" : "text-amber-400";
+              return (
+                <div key={d.id} className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium">{d.name}</div>
+                    <div className={"text-sm font-semibold " + vc}>{verdict}</div>
+                  </div>
+                  <div className="text-sm text-neutral-400 mt-1">
+                    {d.plan_name ?? "—"}{d.address ? " · " + d.address : ""}
+                  </div>
+                  <div className="text-xs text-neutral-500 mt-2 flex flex-wrap gap-4">
+                    {s.total != null && <span>Cost ${Number(s.total).toLocaleString()}</span>}
+                    {s.cfMo != null && <span>Cash flow ${Math.round(s.cfMo).toLocaleString()}/mo</span>}
+                    {s.coc != null && <span>CoC {(s.coc * 100).toFixed(1)}%</span>}
+                    <span>{new Date(d.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+__EOF__
+
+# ---------------------------------------------------------------
+cat > app/analyzer/page.tsx << '__EOF__'
+import { requireOrg } from "@/lib/auth";
+import AppHeader from "@/app/_components/AppHeader";
+import Analyzer from "./Analyzer";
+
+export default async function AnalyzerPage() {
+  const { supabase, orgId, membership } = await requireOrg();
+  const orgName = (membership as any).organizations?.name ?? "Your organization";
+  const { data: org } = await supabase
+    .from("organizations").select("plan").eq("id", orgId).maybeSingle();
+  const isPro = (org as any)?.plan === "pro";
+
+  return (
+    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+      <AppHeader orgName={orgName} />
+      <main className="max-w-5xl mx-auto px-6 py-8">
+        <Analyzer isPro={isPro} />
+      </main>
+    </div>
+  );
+}
+__EOF__
+
+# ---------------------------------------------------------------
+cat > app/analyzer/Analyzer.tsx << '__EOF__'
 "use client";
 
 import { useState } from "react";
@@ -291,3 +466,15 @@ export default function Analyzer({ isPro }: { isPro: boolean }) {
     </div>
   );
 }
+__EOF__
+
+echo ""
+echo "Done. Created/updated:"
+echo "  supabase/migrations/0006_analyzer_pro.sql   (RUN IN SUPABASE)"
+echo "  app/analyzer/actions.ts"
+echo "  app/analyzer/saved/page.tsx"
+echo "  app/analyzer/page.tsx        (passes plan to Analyzer)"
+echo "  app/analyzer/Analyzer.tsx    (adds Pro-gated save widget)"
+echo ""
+echo "Then run 0006 in Supabase, and to TEST Pro, flip your org:"
+echo "  update organizations set plan='pro' where id=(select id from organizations order by created_at desc limit 1);"
