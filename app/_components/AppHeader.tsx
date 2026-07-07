@@ -16,6 +16,7 @@ export default function AppHeader({ orgName }: { orgName: string }) {
             <Link href="/payments" className="hover:text-white">Payments</Link>
             <Link href="/maintenance" className="hover:text-white">Maintenance</Link>
             <Link href="/vendors" className="hover:text-white">Vendors</Link>
+            <Link href="/analyzer" className="hover:text-white text-amber-300">Analyzer</Link>
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">
