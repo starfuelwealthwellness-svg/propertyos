@@ -5,8 +5,7 @@ import AppHeader from "@/app/_components/AppHeader";
 export default async function SavedDealsPage() {
   const { supabase, orgId, membership } = await requireOrg();
   const orgName = (membership as any).organizations?.name ?? "Your organization";
-  const { data: org } = await supabase
-    .from("organizations").select("plan").eq("id", orgId).maybeSingle();
+  const { data: org } = await supabase.from("organizations").select("plan").eq("id", orgId).maybeSingle();
   const isPro = (org as any)?.plan === "pro";
 
   let deals: any[] | null = null;
@@ -52,11 +51,12 @@ export default async function SavedDealsPage() {
                   <div className="text-sm text-neutral-400 mt-1">
                     {d.plan_name ?? "—"}{d.address ? " · " + d.address : ""}
                   </div>
-                  <div className="text-xs text-neutral-500 mt-2 flex flex-wrap gap-4">
+                  <div className="text-xs text-neutral-500 mt-2 flex flex-wrap gap-4 items-center">
                     {s.total != null && <span>Cost ${Number(s.total).toLocaleString()}</span>}
                     {s.cfMo != null && <span>Cash flow ${Math.round(s.cfMo).toLocaleString()}/mo</span>}
                     {s.coc != null && <span>CoC {(s.coc * 100).toFixed(1)}%</span>}
                     <span>{new Date(d.created_at).toLocaleDateString()}</span>
+                    <Link href={"/analyzer/report/" + d.id} className="text-amber-300 hover:underline ml-auto">PDF report →</Link>
                   </div>
                 </div>
               );
