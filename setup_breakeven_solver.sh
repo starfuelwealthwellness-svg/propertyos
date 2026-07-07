@@ -1,3 +1,13 @@
+#!/usr/bin/env bash
+# PropertyOS — add the Break-even Solver to the in-app Analyzer.
+# Overwrites app/analyzer/Analyzer.tsx. Run from project root.
+set -e
+if [ ! -f app/analyzer/Analyzer.tsx ]; then
+  echo "ERROR: app/analyzer/Analyzer.tsx not found. Run the analyzer setup first."
+  exit 1
+fi
+
+cat > app/analyzer/Analyzer.tsx << '__EOF__'
 "use client";
 
 import { useState } from "react";
@@ -268,3 +278,7 @@ export default function Analyzer() {
     </div>
   );
 }
+__EOF__
+
+echo "Done. Updated app/analyzer/Analyzer.tsx with the break-even solver."
+echo "Hot-reload should pick it up; if not, restart the dev server."
