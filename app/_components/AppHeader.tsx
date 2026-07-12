@@ -20,7 +20,7 @@ export default function AppHeader({ orgName }: { orgName: string }) {
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-neutral-400">{orgName}</span>
+          <Link href="/billing" className="text-neutral-400 hover:text-white">{orgName}</Link>
           <form action={signOut}>
             <button className="text-neutral-400 hover:text-white">Sign out</button>
           </form>
