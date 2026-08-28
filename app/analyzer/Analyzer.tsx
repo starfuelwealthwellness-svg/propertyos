@@ -58,6 +58,7 @@ export default function Analyzer({ isPro }: { isPro: boolean }) {
     sqft: "3696", beds: "8", units: "6", buildPsf: "150", softPct: "18", finVal: "",
     downPct: "20", rate: "7.25", term: "30", rentPsf: "1.50", vac: "7", opex: "35", appr: "3", hold: "10",
   });
+  const [mode, setMode] = useState<"tulsa" | "custom">("tulsa");
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -128,8 +129,20 @@ export default function Analyzer({ isPro }: { isPro: boolean }) {
         <div className="text-xs uppercase tracking-wide text-amber-400 font-semibold">Infill Build Analyzer</div>
         <h1 className="text-2xl font-semibold mt-1">Does this lot pencil into a home you can own?</h1>
         <p className="text-sm text-neutral-400 mt-1 max-w-2xl">
-          Pair a vacant Tulsa lot with a pre-approved T-Town HOME Catalog plan and see the build-to-own numbers in real time.
+          {mode === "tulsa"
+            ? "Pair a vacant Tulsa lot with a pre-approved T-Town HOME Catalog plan and see the build-to-own numbers in real time."
+            : "Enter any lot and any plan's details and see the build-to-own numbers in real time — anywhere."}
         </p>
+        <div className="mt-3 inline-flex rounded-lg border border-neutral-800 bg-neutral-900 p-1 text-sm">
+          <button type="button" onClick={() => setMode("tulsa")}
+            className={"px-3 py-1.5 rounded-md font-medium " + (mode === "tulsa" ? "bg-amber-500 text-neutral-950" : "text-neutral-400 hover:text-neutral-200")}>
+            Tulsa catalog
+          </button>
+          <button type="button" onClick={() => setMode("custom")}
+            className={"px-3 py-1.5 rounded-md font-medium " + (mode === "custom" ? "bg-amber-500 text-neutral-950" : "text-neutral-400 hover:text-neutral-200")}>
+            Custom build
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -151,17 +164,25 @@ export default function Analyzer({ isPro }: { isPro: boolean }) {
             <div><label className={label}>Lot size (sq ft)</label><input className={input} type="number" value={f.lotSize} onChange={(e) => set("lotSize", e.target.value)} /></div>
             <div><label className={label}>Land cost ($)</label><input className={input} type="number" value={f.landCost} onChange={(e) => set("landCost", e.target.value)} /></div>
           </div>
-          <div>
-            <label className={label}>Catalog plan (T-Town HOME Catalog)</label>
-            <select className={input} value={f.planIdx} onChange={(e) => setPlan(Number(e.target.value))}>
-              {PLANS.map((p, i) => <option key={i} value={i}>{p.name} — {p.short}</option>)}
-            </select>
-            <div className="flex flex-wrap gap-2 mt-2">
-              <span className="text-xs bg-neutral-800 border border-neutral-700 rounded px-2 py-0.5 text-neutral-300">{plan.mix}</span>
-              <span className="text-xs bg-neutral-800 border border-neutral-700 rounded px-2 py-0.5 text-neutral-300">{plan.stories} stories</span>
-              {plan.ami !== "—" && <span className="text-xs bg-amber-500/15 border border-amber-500/40 rounded px-2 py-0.5 text-amber-300 font-medium">{plan.ami}</span>}
+          {mode === "tulsa" ? (
+            <div>
+              <label className={label}>Catalog plan (T-Town HOME Catalog)</label>
+              <select className={input} value={f.planIdx} onChange={(e) => setPlan(Number(e.target.value))}>
+                {PLANS.map((p, i) => <option key={i} value={i}>{p.name} — {p.short}</option>)}
+              </select>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="text-xs bg-neutral-800 border border-neutral-700 rounded px-2 py-0.5 text-neutral-300">{plan.mix}</span>
+                <span className="text-xs bg-neutral-800 border border-neutral-700 rounded px-2 py-0.5 text-neutral-300">{plan.stories} stories</span>
+                {plan.ami !== "—" && <span className="text-xs bg-amber-500/15 border border-amber-500/40 rounded px-2 py-0.5 text-amber-300 font-medium">{plan.ami}</span>}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              <div><label className={label}>Beds</label><input className={input} type="number" value={f.beds} onChange={(e) => set("beds", e.target.value)} /></div>
+              <div><label className={label}>Units</label><input className={input} type="number" value={f.units} onChange={(e) => set("units", e.target.value)} /></div>
+              <div><label className={label}>Stories</label><input className={input} type="number" defaultValue={2} /></div>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-3">
             <div><label className={label}>Build sq ft</label><input className={input} type="number" value={f.sqft} onChange={(e) => set("sqft", e.target.value)} /></div>
             <div><label className={label}>Build $/sf</label><input className={input} type="number" value={f.buildPsf} onChange={(e) => set("buildPsf", e.target.value)} /></div>
@@ -284,7 +305,10 @@ export default function Analyzer({ isPro }: { isPro: boolean }) {
           </div>
 
           <p className="text-xs text-neutral-600">
-            Plan specs are from the City of Tulsa T-Town HOME Catalog. Cost, rent, and financing figures are editable estimates for planning only — not financial advice.
+            {mode === "tulsa"
+              ? "Plan specs are from the City of Tulsa T-Town HOME Catalog. "
+              : "Custom mode: all specs are your own inputs. "}
+            Cost, rent, and financing figures are editable estimates for planning only — not financial advice.
           </p>
         </div>
       </div>
