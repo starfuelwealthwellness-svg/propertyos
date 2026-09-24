@@ -20,7 +20,7 @@ export async function startProCheckout() {
       customer: o?.stripe_customer_id || undefined,
       customer_email: o?.stripe_customer_id ? undefined : (user.email || undefined),
       metadata: { organization_id: orgId },
-      subscription_data: { trial_period_days: 14, metadata: { organization_id: orgId } },
+      subscription_data: { metadata: { organization_id: orgId } },
       success_url: appUrl + "/billing?upgraded=1",
       cancel_url: appUrl + "/billing?canceled=1",
     });
